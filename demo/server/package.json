@@ -1,0 +1,15 @@
+{
+  "name": "sigql-server",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "dependencies": {
+    "graphql-yoga": "^5.10.4",
+    "graphql": "^16.10.0",
+    "graphql-ws": "^5.16.0",
+    "ws": "^8.18.0"
+  }
+}
