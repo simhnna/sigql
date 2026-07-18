@@ -22,7 +22,11 @@ export class GraphqlWsTransport implements SubscriptionTransport {
             subscriber.next(msg.data as T);
           },
           error: (err) => {
-            subscriber.error(Array.isArray(err) ? new SigqlError(err as unknown as GraphQLError[]) : new SigqlError([], err as Error | undefined));
+            subscriber.error(
+              Array.isArray(err)
+                ? new SigqlError(err as unknown as GraphQLError[])
+                : new SigqlError([], err as Error | undefined),
+            );
           },
           complete: () => subscriber.complete(),
         },

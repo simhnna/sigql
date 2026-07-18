@@ -28,9 +28,9 @@ Running a single test file or test name (append after `pnpm test --`, or call `n
 - `npx ng test sigql --filter "some test name regex"`
 - `npx ng test sigql --watch` for watch mode (watch is on by default in a TTY).
 
-There is no separate lint script in `package.json`; formatting is via Prettier (`.prettierrc`: single quotes, 100 print width, `angular` parser for `.html`).
+`pnpm run lint` runs `prettier --check .`; formatting is via Prettier (`.prettierrc`: single quotes, 100 print width, `angular` parser for `.html`).
 
-CI (`.github/workflows/`) runs, in order: `pnpm install --frozen-lockfile`, `pnpm run build:lib`, `pnpm run build:demo`, `pnpm run test`. A separate `Publish` workflow builds+tests+publishes `dist/sigql` to npm on `v*.*.*` tags, gated on the tag matching `dist/sigql/package.json`'s version.
+CI (`.github/workflows/`) runs two parallel jobs on pushes/PRs to `main`: `lint` (`pnpm run lint`) and `test` (`pnpm install --frozen-lockfile`, `pnpm run build:lib`, `pnpm run build:demo`, `pnpm run test`). A separate `Publish` workflow builds+tests+publishes `dist/sigql` to npm on `v*.*.*` tags, gated on the tag matching `dist/sigql/package.json`'s version.
 
 ## Architecture
 
