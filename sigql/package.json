@@ -1,6 +1,6 @@
 {
   "name": "sigql",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "A lightweight, signal-first GraphQL client for Angular.",
   "license": "MIT",
   "repository": {
