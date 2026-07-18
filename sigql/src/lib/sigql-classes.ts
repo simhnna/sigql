@@ -22,7 +22,12 @@ export abstract class Query<T, V extends Record<string, unknown> = Record<string
   }
 
   watchResource<R = T>(variables?: () => V, select?: (data: T) => R): ResourceRef<R | undefined> {
-    return watchQueryResource<T, V, R>({ query: this.document, variables, select, service: this.sigql });
+    return watchQueryResource<T, V, R>({
+      query: this.document,
+      variables,
+      select,
+      service: this.sigql,
+    });
   }
 }
 
@@ -31,7 +36,10 @@ export abstract class Mutation<T, V extends Record<string, unknown> = Record<str
   private readonly sigql = inject(SigqlService);
   abstract readonly document: DocumentInput;
 
-  mutate(variables?: V, options?: { refetchQueries?: string[]; awaitRefetchQueries?: boolean }): Promise<GraphQLResult<T>> {
+  mutate(
+    variables?: V,
+    options?: { refetchQueries?: string[]; awaitRefetchQueries?: boolean },
+  ): Promise<GraphQLResult<T>> {
     return this.sigql.mutate<T, V>({ mutation: this.document, variables, ...options });
   }
 }
@@ -46,6 +54,11 @@ export abstract class Subscription<T, V extends Record<string, unknown> = Record
   }
 
   resource<R = T>(variables?: () => V, select?: (data: T) => R): ResourceRef<R | undefined> {
-    return subscriptionResource<T, V, R>({ subscription: this.document, variables, select, service: this.sigql });
+    return subscriptionResource<T, V, R>({
+      subscription: this.document,
+      variables,
+      select,
+      service: this.sigql,
+    });
   }
 }
