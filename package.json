@@ -1,6 +1,6 @@
 {
   "name": "sigql-workspace",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "scripts": {
     "ng": "ng",
     "start": "ng serve demo",
@@ -12,7 +12,8 @@
     "dev": "concurrently \"pnpm run server\" \"pnpm run start\"",
     "test": "ng test sigql",
     "lint": "prettier --check .",
-    "prepare": "husky"
+    "prepare": "husky",
+    "release": "commit-and-tag-version"
   },
   "private": true,
   "packageManager": "pnpm@10.28.2",
@@ -31,6 +32,7 @@
     "@angular/build": "^22.0.5",
     "@angular/cli": "^22.0.5",
     "@angular/compiler-cli": "^22.0.5",
+    "commit-and-tag-version": "^13.0.0",
     "concurrently": "^9.2.1",
     "graphql-ws": "^5.16.0",
     "husky": "^9.1.7",
@@ -43,5 +45,11 @@
   },
   "lint-staged": {
     "*": "prettier --ignore-unknown --write"
+  },
+  "commit-and-tag-version": {
+    "bumpFiles": [
+      "package.json",
+      "sigql/package.json"
+    ]
   }
 }
