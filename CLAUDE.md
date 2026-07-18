@@ -38,8 +38,8 @@ CI (`.github/workflows/`) runs two parallel jobs on pushes/PRs to `main`: `lint`
 
 `SigqlService` (`sigql/src/lib/sigql.service.ts`) is the single place that talks HTTP/WS. It injects `SIGQL_ENDPOINT`/`SIGQL_CONFIG` (from `provideSigql()` in `provider.ts`) and an optional `SIGQL_SUBSCRIPTION_TRANSPORT`. Everything else in the library is built on its four primitives:
 
-- `query()` / `execute()` — one-shot request, returns a `GraphQLResult<T>` (a discriminated union on `ok`, never throws).
-- `watch()` — a hot `Observable<T>` that re-runs on demand: it resolves the operation name from the `DocumentNode` (or an explicit `operationName`), registers itself with `QueryRegistry`, and re-fetches whenever that name is triggered elsewhere (e.g. by a mutation's `refetchQueries`) or on `pollInterval`.
+- `query()` / `execute()` — one-shot request, returns a `GraphQLResult<T>` (a discriminated union on `ok`, never throws; the promise only rejects when the caller's `abortSignal` fires).
+- `watch()` — a hot `Observable<GraphQLResult<T>>` that re-runs on demand: it resolves the operation name from the `DocumentNode` (or an explicit `operationName`), registers itself with `QueryRegistry`, and re-fetches whenever that name is triggered elsewhere (e.g. by a mutation's `refetchQueries`) or on `pollInterval`. Failed fetches are emitted as `ok: false` results — the stream never errors, so polling survives transient failures.
 - `subscribe()` — delegates to the injected `SubscriptionTransport` (throws a `SigqlError` if none is configured).
 - `mutate()` — runs the mutation, then triggers `refetchQueries` (fire-and-forget, or awaited if `awaitRefetchQueries` is set).
 
@@ -54,7 +54,7 @@ CI (`.github/workflows/`) runs two parallel jobs on pushes/PRs to `main`: `lint`
 Built on top of `SigqlService` + `QueryRegistry`, exposing Angular `resource()`-shaped APIs:
 
 - `queryResource()` — a resource keyed by a `Signal` of variables; reloads when variables change, on `pollInterval`, and cancels stale in-flight requests via `AbortSignal` (set as the `abortSignal` field on the `GraphQLRequest` passed to `SigqlService.query()`).
-- `watchQueryResource()` — like `queryResource()`, but additionally reloads when `QueryRegistry`'s generation counter for its operation name increments (i.e. it's the resource-based counterpart to `watch()`). It registers a no-op fetcher purely so `refetchAndWait()` knows a resource consumer exists for that name.
+- `watchQueryResource()` — like `queryResource()`, but additionally reloads when `QueryRegistry`'s generation counter for its operation name increments (i.e. it's the resource-based counterpart to `watch()`). It registers a fetcher that returns a deferred promise, settled by the loader once a reload for that generation (or newer) completes, so `refetchAndWait()`/`awaitRefetchQueries` genuinely wait for resource consumers.
 - `subscriptionResource()` — wraps `SigqlService.subscribe()` via `rxResource`.
 - `applyMutationResult()` — optimistic/local-update helper: only calls `resource.set(...)` when a mutation result is `ok`, otherwise passes the result through unchanged.
 
@@ -64,7 +64,7 @@ Built on top of `SigqlService` + `QueryRegistry`, exposing Angular `resource()`-
 
 ### `gql` tag and printing
 
-`gql.ts` re-implements the `gql` template tag directly on top of `graphql`'s `parse` (no `graphql-tag` dependency). `SigqlService` caches `print(document)` output in a `WeakMap` keyed by the parsed `DocumentNode` so repeated calls with the same document don't re-stringify.
+`gql.ts` re-implements the `gql` template tag directly on top of `graphql`'s `parse` (no `graphql-tag` dependency). Interpolations may be strings or `DocumentNode`s (fragments, printed back into the source); anything else throws to close off GraphQL injection. Parsed documents are cached by source string, and `SigqlService` caches `print(document)` output in a `WeakMap` keyed by the parsed `DocumentNode` so repeated calls with the same document don't re-stringify.
 
 ### Subscriptions are pluggable
 

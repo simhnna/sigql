@@ -1,25 +1,43 @@
 import { DocumentNode } from './gql';
 
-export type DocumentInput = string | DocumentNode;
+/**
+ * A `DocumentNode` that carries its result/variables types, so `query()`/`queryResource()`/etc.
+ * can infer `T` and `V` from the document instead of requiring explicit type arguments.
+ *
+ * Structurally compatible with `TypedDocumentNode` from `@graphql-typed-document-node/core`,
+ * which is what GraphQL Code Generator emits — generated documents work here directly.
+ */
+export interface TypedDocumentNode<TResult = any, TVariables = any> extends DocumentNode {
+  /** Never set at runtime — a type-level brand carrying `TResult`/`TVariables`. */
+  __apiType?: (variables: TVariables) => TResult;
+}
 
-export interface GraphQLRequest<V = Record<string, unknown>> {
-  query: DocumentInput;
+/**
+ * A GraphQL document: a raw string, a plain `DocumentNode` (e.g. from the `gql` tag), or a
+ * `TypedDocumentNode` (which additionally drives type inference for results and variables).
+ */
+export type DocumentInput<TResult = any, TVariables = any> =
+  | string
+  | TypedDocumentNode<TResult, TVariables>;
+
+export interface GraphQLRequest<T = any, V = Record<string, unknown>> {
+  query: DocumentInput<T, V>;
   variables?: V;
   operationName?: string;
   /** Aborts the in-flight request if it fires before the response arrives. Used by `execute()`/`query()`. */
   abortSignal?: AbortSignal;
 }
 
-export interface GraphQLMutationRequest<V = Record<string, unknown>> {
-  mutation: DocumentInput;
+export interface GraphQLMutationRequest<T = any, V = Record<string, unknown>> {
+  mutation: DocumentInput<T, V>;
   variables?: V;
   operationName?: string;
   refetchQueries?: string[];
   awaitRefetchQueries?: boolean;
 }
 
-export interface GraphQLSubscriptionRequest<V = Record<string, unknown>> {
-  subscription: DocumentInput;
+export interface GraphQLSubscriptionRequest<T = any, V = Record<string, unknown>> {
+  subscription: DocumentInput<T, V>;
   variables?: V;
   operationName?: string;
 }

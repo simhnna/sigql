@@ -11,7 +11,7 @@ import {
   SubscriptionRequest,
   SubscriptionTransport,
 } from './subscription-transport';
-import { SigqlError } from './types';
+import { GraphQLResult, SigqlError } from './types';
 import { gql } from './gql';
 
 const ENDPOINT = 'http://localhost:4000/graphql';
@@ -20,12 +20,16 @@ const ENDPOINT = 'http://localhost:4000/graphql';
 // side effects driven by watch()'s internal `p.then(...)` have had a chance to fire.
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
-function setup(config?: { operationNameParam?: string }, transport?: SubscriptionTransport) {
+function setup(
+  config?: { operationNameParam?: string },
+  transport?: SubscriptionTransport,
+  endpoint = ENDPOINT,
+) {
   TestBed.configureTestingModule({
     providers: [
       provideHttpClient(withXhr()),
       provideHttpClientTesting(),
-      { provide: SIGQL_ENDPOINT, useValue: ENDPOINT },
+      { provide: SIGQL_ENDPOINT, useValue: endpoint },
       ...(config ? [{ provide: SIGQL_CONFIG, useValue: config }] : []),
       ...(transport ? [{ provide: SIGQL_SUBSCRIPTION_TRANSPORT, useValue: transport }] : []),
     ],
@@ -87,6 +91,51 @@ describe('SigqlService', () => {
       }
     });
 
+    it('preserves HTTP error details in networkError on a non-2xx response', async () => {
+      expect.assertions(3);
+      const { service, http } = setup();
+      const promise = service.execute({ query: '{ hello' });
+
+      // graphql-yoga & friends return validation/parse errors with a 400 status and a
+      // regular GraphQL errors body — this must not degrade into an opaque networkError.
+      http
+        .expectOne(ENDPOINT)
+        .flush(
+          { errors: [{ message: 'Syntax Error: Expected Name, found <EOF>.' }] },
+          { status: 400, statusText: 'Bad Request' },
+        );
+
+      const result = await promise;
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.networkError?.message).not.toBe('[object Object]');
+        expect(result.networkError?.message).toContain('400');
+      }
+    });
+
+    it('extracts GraphQL errors from a non-2xx response body', async () => {
+      expect.assertions(2);
+      const { service, http } = setup();
+      const promise = service.execute({ query: '{ hello' });
+
+      http
+        .expectOne(ENDPOINT)
+        .flush(
+          { errors: [{ message: 'Syntax Error: Expected Name, found <EOF>.' }] },
+          { status: 400, statusText: 'Bad Request' },
+        );
+
+      const result = await promise;
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.graphqlErrors).toEqual([
+          { message: 'Syntax Error: Expected Name, found <EOF>.' },
+        ]);
+      }
+    });
+
     it('converts a DocumentNode to a string before sending', async () => {
       const { service, http } = setup();
       const doc = gql`
@@ -130,15 +179,36 @@ describe('SigqlService', () => {
       await promise;
     });
 
-    it('cancels the underlying HTTP request when abortSignal fires', async () => {
+    it('appends with & when the endpoint already has a query string', async () => {
+      const endpoint = `${ENDPOINT}?tenant=acme`;
+      const { service, http } = setup({ operationNameParam: 'op' }, undefined, endpoint);
+      const promise = service.execute({ query: '{ hello }', operationName: 'MyQuery' });
+
+      http.expectOne(`${endpoint}&op=MyQuery`).flush({ data: {} });
+      await promise;
+    });
+
+    it('cancels the underlying HTTP request and rejects when abortSignal fires', async () => {
       const { service, http } = setup();
       const controller = new AbortController();
-      service.execute({ query: '{ hello }', abortSignal: controller.signal });
+      const promise = service.execute({ query: '{ hello }', abortSignal: controller.signal });
 
       const req = http.expectOne(ENDPOINT);
       controller.abort();
 
       expect(req.cancelled).toBe(true);
+      await expect(promise).rejects.toMatchObject({ name: 'AbortError' });
+    });
+
+    it('rejects without sending a request when the signal is already aborted', async () => {
+      const { service, http } = setup();
+      const controller = new AbortController();
+      controller.abort();
+
+      const promise = service.execute({ query: '{ hello }', abortSignal: controller.signal });
+
+      await expect(promise).rejects.toMatchObject({ name: 'AbortError' });
+      http.expectNone(ENDPOINT);
     });
 
     it('does not abort once the response has already resolved', async () => {
@@ -182,7 +252,39 @@ describe('SigqlService', () => {
 
       http.expectOne(ENDPOINT).flush({ data: { user: { id: '1' } } });
       await tick();
-      expect(result).toEqual({ user: { id: '1' } });
+      expect(result).toEqual({ data: { user: { id: '1' } }, ok: true });
+
+      sub.unsubscribe();
+    });
+
+    it('emits a failed fetch as an ok: false result and keeps the stream alive', async () => {
+      const { service, http, registry } = setup();
+      const doc = gql`
+        query GetUser {
+          user {
+            id
+          }
+        }
+      `;
+      const results: GraphQLResult<{ user: { id: string } }>[] = [];
+      const sub = service
+        .watch<{ user: { id: string } }>({ query: doc })
+        .subscribe((v) => results.push(v));
+
+      http
+        .expectOne(ENDPOINT)
+        .error(new ProgressEvent('error'), { status: 0, statusText: 'Unknown Error' });
+      await tick();
+      expect(results).toHaveLength(1);
+      expect(results[0].ok).toBe(false);
+
+      // The stream survives the failure: a later trigger re-fetches and emits fresh data.
+      registry.refetch(['GetUser']);
+      http.expectOne(ENDPOINT).flush({ data: { user: { id: '1' } } });
+      await tick();
+
+      expect(results).toHaveLength(2);
+      expect(results[1]).toEqual({ data: { user: { id: '1' } }, ok: true });
 
       sub.unsubscribe();
     });
@@ -209,7 +311,7 @@ describe('SigqlService', () => {
       http.expectOne(ENDPOINT).flush({ data: { user: { id: '2' } } });
       await tick();
       expect(results).toHaveLength(2);
-      expect(results[1]).toEqual({ user: { id: '2' } });
+      expect(results[1]).toEqual({ data: { user: { id: '2' } }, ok: true });
 
       sub.unsubscribe();
     });
@@ -272,7 +374,7 @@ describe('SigqlService', () => {
       await tick();
 
       expect(results).toHaveLength(2);
-      expect(results[1]).toEqual({ user: { id: '2' } });
+      expect(results[1]).toEqual({ data: { user: { id: '2' } }, ok: true });
 
       sub.unsubscribe();
     });
@@ -301,7 +403,7 @@ describe('SigqlService', () => {
         http.expectOne(ENDPOINT).flush({ data: { user: { id: '2' } } });
         await vi.advanceTimersByTimeAsync(0);
         expect(results).toHaveLength(2);
-        expect(results[1]).toEqual({ user: { id: '2' } });
+        expect(results[1]).toEqual({ data: { user: { id: '2' } }, ok: true });
 
         sub.unsubscribe();
       } finally {
@@ -380,6 +482,21 @@ describe('SigqlService', () => {
 
       await expect(promise).resolves.toEqual({ data: { doSomething: true }, ok: true });
       expect(fetcherCalled).toBe(true);
+    });
+
+    it('resolves with the mutation result even when an awaited refetch fails', async () => {
+      const { service, http, registry } = setup();
+      registry.registerFetcher('MyQuery', () => Promise.reject(new Error('refetch failed')));
+
+      const promise = service.mutate({
+        mutation: 'mutation { doSomething }',
+        refetchQueries: ['MyQuery'],
+        awaitRefetchQueries: true,
+      });
+
+      http.expectOne(ENDPOINT).flush({ data: { doSomething: true } });
+
+      await expect(promise).resolves.toEqual({ data: { doSomething: true }, ok: true });
     });
 
     it('does not trigger refetchQueries when the mutation itself fails', async () => {

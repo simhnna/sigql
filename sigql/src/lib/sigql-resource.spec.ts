@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, expectTypeOf, vi } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import {
   createEnvironmentInjector,
@@ -8,9 +8,16 @@ import {
   WritableResource,
 } from '@angular/core';
 import { Observable, Subject } from 'rxjs';
-import { applyMutationResult, queryResource, subscriptionResource } from './sigql-resource';
+import {
+  applyMutationResult,
+  queryResource,
+  subscriptionResource,
+  watchQueryResource,
+} from './sigql-resource';
 import { SigqlService } from './sigql.service';
-import { GraphQLResult } from './types';
+import { QueryRegistry } from './query-registry.service';
+import { gql } from './gql';
+import { GraphQLResult, TypedDocumentNode } from './types';
 
 function fakeResource<T>(initial: T): WritableResource<T> {
   const value = signal(initial);
@@ -146,6 +153,165 @@ describe('queryResource', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('queryResource typing and injector', () => {
+  it('infers result and variables types from a TypedDocumentNode', async () => {
+    type Result = { user: { id: string } };
+    type Vars = { id: string };
+    const doc = gql`
+      query GetUser($id: ID!) {
+        user(id: $id) {
+          id
+        }
+      }
+    ` as TypedDocumentNode<Result, Vars>;
+    const service = fakeQueryService(() =>
+      Promise.resolve({ data: { user: { id: '1' } }, ok: true }),
+    );
+
+    const ref = TestBed.runInInjectionContext(() =>
+      queryResource({ query: doc, variables: () => ({ id: '1' }), service }),
+    );
+
+    expectTypeOf(ref.value()).toEqualTypeOf<Result | undefined>();
+
+    TestBed.tick();
+    await flush();
+    expect(ref.value()).toEqual({ user: { id: '1' } });
+  });
+
+  it('can be created outside an injection context via the injector option', async () => {
+    const service = fakeQueryService(() => Promise.resolve({ data: { hello: 'world' }, ok: true }));
+    const injector = TestBed.inject(EnvironmentInjector);
+
+    const ref = queryResource<{ hello: string }>({ query: '{ hello }', service, injector });
+
+    TestBed.tick();
+    await flush();
+    expect(ref.value()).toEqual({ hello: 'world' });
+  });
+});
+
+describe('watchQueryResource', () => {
+  const GET_HELLO = gql`
+    query GetHello {
+      hello
+    }
+  `;
+
+  it('reloads when refetch() targets its operation name', async () => {
+    let calls = 0;
+    const service = fakeQueryService(() => {
+      calls++;
+      return Promise.resolve({ data: { hello: `v${calls}` }, ok: true });
+    });
+
+    const ref = TestBed.runInInjectionContext(() =>
+      watchQueryResource<{ hello: string }>({ query: GET_HELLO, service }),
+    );
+
+    TestBed.tick();
+    await flush();
+    expect(ref.value()).toEqual({ hello: 'v1' });
+
+    TestBed.inject(QueryRegistry).refetch(['GetHello']);
+    TestBed.tick();
+    await flush();
+
+    expect(calls).toBe(2);
+    expect(ref.value()).toEqual({ hello: 'v2' });
+  });
+
+  it('participates in refetching for string queries when operationName is given', async () => {
+    let calls = 0;
+    const service = fakeQueryService(() => {
+      calls++;
+      return Promise.resolve({ data: { hello: 'world' }, ok: true });
+    });
+
+    TestBed.runInInjectionContext(() =>
+      watchQueryResource<{ hello: string }>({
+        query: '{ hello }',
+        operationName: 'GetHello',
+        service,
+      }),
+    );
+
+    TestBed.tick();
+    await flush();
+    expect(calls).toBe(1);
+
+    TestBed.inject(QueryRegistry).refetch(['GetHello']);
+    TestBed.tick();
+    await flush();
+
+    expect(calls).toBe(2);
+  });
+
+  it('makes refetchAndWait() resolve only after the triggered reload completes', async () => {
+    const resolvers: ((result: unknown) => void)[] = [];
+    const service = fakeQueryService(() => new Promise((resolve) => resolvers.push(resolve)));
+
+    TestBed.runInInjectionContext(() =>
+      watchQueryResource<{ hello: string }>({ query: GET_HELLO, service }),
+    );
+
+    TestBed.tick();
+    resolvers[0]({ data: { hello: 'a' }, ok: true });
+    await flush();
+
+    let settled = false;
+    const wait = TestBed.inject(QueryRegistry)
+      .refetchAndWait(['GetHello'])
+      .then(() => (settled = true));
+
+    // The reload hasn't even started yet — the awaited refetch must not have resolved.
+    await flush();
+    expect(settled).toBe(false);
+
+    TestBed.tick();
+    await flush();
+    expect(settled).toBe(false);
+    expect(resolvers).toHaveLength(2);
+
+    resolvers[1]({ data: { hello: 'b' }, ok: true });
+    await flush();
+    await wait;
+    expect(settled).toBe(true);
+  });
+
+  it('suspends while variables() returns undefined and loads once they become available', async () => {
+    const id = signal<string | undefined>(undefined);
+    const requested: unknown[] = [];
+    const service = fakeQueryService((request) => {
+      requested.push((request as { variables: unknown }).variables);
+      return Promise.resolve({ data: { hello: 'world' }, ok: true });
+    });
+
+    const ref = TestBed.runInInjectionContext(() =>
+      watchQueryResource<{ hello: string }, { id: string }>({
+        query: GET_HELLO,
+        service,
+        variables: () => {
+          const value = id();
+          return value === undefined ? undefined : { id: value };
+        },
+      }),
+    );
+
+    TestBed.tick();
+    await flush();
+    expect(requested).toEqual([]);
+    expect(ref.status()).toBe('idle');
+
+    id.set('1');
+    TestBed.tick();
+    await flush();
+
+    expect(requested).toEqual([{ id: '1' }]);
+    expect(ref.value()).toEqual({ hello: 'world' });
   });
 });
 

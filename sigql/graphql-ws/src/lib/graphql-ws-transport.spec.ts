@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { createEnvironmentInjector, EnvironmentInjector } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
 import { SIGQL_SUBSCRIPTION_TRANSPORT, SigqlError } from 'sigql';
 import { GraphqlWsTransport } from './graphql-ws-transport';
 import { provideGraphqlWs } from './provide-graphql-ws';
 
-const createClientMock = vi.fn((_options: unknown) => ({ subscribe: vi.fn() }));
+const createClientMock = vi.fn((_options: unknown) => ({ subscribe: vi.fn(), dispose: vi.fn() }));
 vi.mock('graphql-ws', () => ({
   createClient: (options: unknown) => createClientMock(options),
 }));
@@ -117,14 +119,28 @@ describe('GraphqlWsTransport', () => {
 describe('provideGraphqlWs', () => {
   it('creates a graphql-ws client with the given options and provides it as the SIGQL_SUBSCRIPTION_TRANSPORT', () => {
     createClientMock.mockClear();
-    const providers = provideGraphqlWs({ url: 'ws://localhost:4000/graphql' });
+    const injector = createEnvironmentInjector(
+      provideGraphqlWs({ url: 'ws://localhost:4000/graphql' }),
+      TestBed.inject(EnvironmentInjector),
+    );
 
-    expect(providers).toEqual([expect.objectContaining({ provide: SIGQL_SUBSCRIPTION_TRANSPORT })]);
-
-    const useFactory = (providers[0] as unknown as { useFactory: () => unknown }).useFactory;
-    const transport = useFactory();
+    const transport = injector.get(SIGQL_SUBSCRIPTION_TRANSPORT);
 
     expect(createClientMock).toHaveBeenCalledWith({ url: 'ws://localhost:4000/graphql' });
     expect(transport).toBeInstanceOf(GraphqlWsTransport);
+  });
+
+  it('disposes the graphql-ws client when the injector is destroyed', () => {
+    createClientMock.mockClear();
+    const injector = createEnvironmentInjector(
+      provideGraphqlWs({ url: 'ws://localhost:4000/graphql' }),
+      TestBed.inject(EnvironmentInjector),
+    );
+    injector.get(SIGQL_SUBSCRIPTION_TRANSPORT);
+    const client = createClientMock.mock.results[0].value;
+
+    injector.destroy();
+
+    expect(client.dispose).toHaveBeenCalledTimes(1);
   });
 });
