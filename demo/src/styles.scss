@@ -1,4 +1,6 @@
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
@@ -11,5 +13,11 @@ body {
   line-height: 1.6;
 }
 
-h1 { font-size: 1.75rem; margin-bottom: 1rem; }
-h2 { font-size: 1.25rem; margin: 1.25rem 0 0.5rem; }
+h1 {
+  font-size: 1.75rem;
+  margin-bottom: 1rem;
+}
+h2 {
+  font-size: 1.25rem;
+  margin: 1.25rem 0 0.5rem;
+}

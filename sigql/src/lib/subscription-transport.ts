@@ -12,4 +12,6 @@ export interface SubscriptionTransport {
   subscribe<T>(request: SubscriptionRequest): Observable<T>;
 }
 
-export const SIGQL_SUBSCRIPTION_TRANSPORT = new InjectionToken<SubscriptionTransport>('SIGQL_SUBSCRIPTION_TRANSPORT');
+export const SIGQL_SUBSCRIPTION_TRANSPORT = new InjectionToken<SubscriptionTransport>(
+  'SIGQL_SUBSCRIPTION_TRANSPORT',
+);

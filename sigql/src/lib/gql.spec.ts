@@ -3,7 +3,11 @@ import { gql } from './gql';
 
 describe('gql', () => {
   it('parses a query string into a DocumentNode', () => {
-    const doc = gql`{ hello }`;
+    const doc = gql`
+      {
+        hello
+      }
+    `;
     expect(doc).toBeDefined();
     expect(doc.definitions).toHaveLength(1);
     expect(doc.definitions[0].kind).toBe('OperationDefinition');

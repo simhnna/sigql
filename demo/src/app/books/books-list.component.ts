@@ -1,7 +1,14 @@
 import { Component, effect, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { applyMutationResult, errorMessage, gql, queryResource, subscriptionResource, SigqlService } from 'sigql';
+import {
+  applyMutationResult,
+  errorMessage,
+  gql,
+  queryResource,
+  subscriptionResource,
+  SigqlService,
+} from 'sigql';
 
 interface Book {
   id: string;

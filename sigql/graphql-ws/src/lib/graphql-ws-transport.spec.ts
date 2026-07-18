@@ -41,7 +41,9 @@ describe('GraphqlWsTransport', () => {
   });
 
   it('calls client.subscribe with the given query/variables/operationName', () => {
-    transport.subscribe({ query: '{ hello }', variables: { id: '1' }, operationName: 'Hello' }).subscribe();
+    transport
+      .subscribe({ query: '{ hello }', variables: { id: '1' }, operationName: 'Hello' })
+      .subscribe();
 
     expect(fake.subscribe).toHaveBeenCalledWith(
       { query: '{ hello }', variables: { id: '1' }, operationName: 'Hello' },
@@ -61,7 +63,9 @@ describe('GraphqlWsTransport', () => {
   it('errors with a SigqlError and does not emit when a next message carries errors', () => {
     const values: unknown[] = [];
     let error: unknown;
-    transport.subscribe({ query: '{ hello }' }).subscribe({ next: (v) => values.push(v), error: (e) => (error = e) });
+    transport
+      .subscribe({ query: '{ hello }' })
+      .subscribe({ next: (v) => values.push(v), error: (e) => (error = e) });
 
     fake.emit({ data: null, errors: [{ message: 'nope' }] });
 

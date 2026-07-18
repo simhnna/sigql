@@ -53,7 +53,7 @@ export class QueryRegistry {
   refetch(names: string[]): void {
     for (const name of names) {
       this.triggers.get(name)?.next();
-      this.generations.get(name)?.update(g => g + 1);
+      this.generations.get(name)?.update((g) => g + 1);
     }
   }
 
@@ -65,7 +65,7 @@ export class QueryRegistry {
 
     const all: Promise<unknown>[] = [];
     for (const name of names) {
-      this.fetchers.get(name)?.forEach(fn => all.push(fn()));
+      this.fetchers.get(name)?.forEach((fn) => all.push(fn()));
     }
     if (all.length) await Promise.all(all);
   }

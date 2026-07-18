@@ -4,13 +4,11 @@ export const routes: Routes = [
   { path: '', redirectTo: 'books', pathMatch: 'full' },
   {
     path: 'books',
-    loadComponent: () =>
-      import('./books/books-list.component').then((m) => m.BooksListComponent),
+    loadComponent: () => import('./books/books-list.component').then((m) => m.BooksListComponent),
   },
   {
     path: 'books/:id',
-    loadComponent: () =>
-      import('./books/book-detail.component').then((m) => m.BookDetailComponent),
+    loadComponent: () => import('./books/book-detail.component').then((m) => m.BookDetailComponent),
   },
   {
     path: 'authors',
