@@ -41,7 +41,8 @@ await sigql.mutate({
 
 - `refetchQueries` triggers any `watch()`/`watchQueryResource()` consumers currently subscribed under those operation names.
 - Without `awaitRefetchQueries`, refetches are fired and not awaited (`mutate()` resolves as soon as the mutation itself completes).
-- With `awaitRefetchQueries: true`, `mutate()` waits for those refetches to finish too — useful when you need fresh data to be in place before doing something next (e.g. navigating away).
+- With `awaitRefetchQueries: true`, `mutate()` waits for those refetches to finish too — both `watch()` requests and `watchQueryResource()` reloads — useful when you need fresh data to be in place before doing something next (e.g. navigating away).
+- `mutate()` never rejects: a failed refetch doesn't turn a successful mutation into an exception. The refetch failure is delivered to the watching consumers; `mutate()` still resolves with the mutation's own result.
 
 This only works for named operations (`query Books { ... }`, not an anonymous/unnamed query) — see [Refetching & invalidation](refetching.md) for the full mechanics.
 

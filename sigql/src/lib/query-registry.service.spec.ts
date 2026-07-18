@@ -61,6 +61,30 @@ describe('QueryRegistry', () => {
       expect(() => registry.refetch(['UnknownQuery'])).not.toThrow();
     });
 
+    it('warns in dev mode when a name has no registered consumers', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        const registry = createRegistry();
+        registry.refetch(['UnknownQuery']);
+        expect(warn).toHaveBeenCalledOnce();
+        expect(warn.mock.calls[0][0]).toContain("refetch('UnknownQuery')");
+      } finally {
+        warn.mockRestore();
+      }
+    });
+
+    it('does not warn when a fetcher is registered for the name', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        const registry = createRegistry();
+        registry.registerFetcher('MyQuery', () => Promise.resolve());
+        registry.refetch(['MyQuery']);
+        expect(warn).not.toHaveBeenCalled();
+      } finally {
+        warn.mockRestore();
+      }
+    });
+
     it('emits on multiple triggers at once', () => {
       const registry = createRegistry();
       let aCount = 0;

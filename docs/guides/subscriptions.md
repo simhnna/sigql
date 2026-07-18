@@ -44,7 +44,7 @@ protected bookAdded = subscriptionResource<{ bookAdded: { id: string; title: str
 });
 ```
 
-`bookAdded.value()` holds the latest emitted message as a signal. Options mirror `queryResource()`: `variables` (a reactive `() => V` — a plain function, `Signal<V>`, or `computed(...)`), `select` (transform each emission), and an optional `service` override.
+`bookAdded.value()` holds the latest emitted message as a signal. Options mirror `queryResource()`: `variables` (a reactive `() => V` — a plain function, `Signal<V>`, or `computed(...)`; returning `undefined` suspends the subscription), `select` (transform each emission), plus optional `operationName`, `injector`, and `service` overrides.
 
 As with `queryResource()`, `select` reshapes what `.value()` exposes instead of the raw emission:
 

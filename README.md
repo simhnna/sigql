@@ -6,7 +6,7 @@ A lightweight, signal-first GraphQL client for Angular.
 
 ## Why sigql
 
-sigql is built directly on Angular's own reactivity primitives — `signal()` and `resource()` — instead of layering a separate state-management system on top of Angular. There is no normalized entity cache, no cache-policy configuration, and no code generation step required to get typed results.
+sigql is built directly on Angular's own reactivity primitives — `signal()` and `resource()` — instead of layering a separate state-management system on top of Angular. There is no normalized entity cache, no cache-policy configuration, and no code generation step required to get typed results. (If you do use [GraphQL Code Generator](https://the-guild.dev/graphql/codegen), sigql accepts its `TypedDocumentNode`s and infers result/variable types from them automatically.)
 
 That's a deliberate trade-off, not an oversight: sigql is for apps that want simple, predictable query/mutation/subscription plumbing and don't need (or want to pay for) a full client-side cache layer with automatic cross-query entity updates. If your app has complex, deeply interlinked entities that many queries need to stay in sync on automatically, a normalized cache like Apollo's is doing real work for you — see [sigql vs Apollo Angular](#sigql-vs-apollo-angular) below.
 

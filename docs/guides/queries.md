@@ -21,6 +21,44 @@ const AUTHORS_QUERY = gql`
 
 Naming the operation (`query Authors`) matters if you want this query to participate in refetching — see [Refetching & invalidation](refetching.md).
 
+Interpolations in a `gql` template may be strings (shared field lists) or other `DocumentNode`s (fragments, printed back into the source):
+
+```ts
+const AUTHOR_FIELDS = gql`
+  fragment AuthorFields on Author {
+    id
+    name
+  }
+`;
+
+const AUTHORS_QUERY = gql`
+  query Authors {
+    authors {
+      ...AuthorFields
+    }
+  }
+  ${AUTHOR_FIELDS}
+`;
+```
+
+Anything else throws: interpolating runtime values into the document is a GraphQL injection vector — pass dynamic values as GraphQL variables instead. Identical `gql` sources return the same cached `DocumentNode` instance, so defining documents inside functions doesn't defeat downstream per-document caches.
+
+## Typed documents (graphql-codegen)
+
+Every API that takes a document also accepts a `TypedDocumentNode<TResult, TVariables>` — the convention emitted by [GraphQL Code Generator](https://the-guild.dev/graphql/codegen) and shared across GraphQL clients. With a typed document, result and variables types are inferred; no explicit type arguments needed:
+
+```ts
+import { AuthorDocument } from './generated'; // TypedDocumentNode<AuthorResult, AuthorVars>
+
+protected authorResource = queryResource({
+  query: AuthorDocument,
+  variables: () => ({ id: this.authorId() }), // type-checked against AuthorVars
+});
+// authorResource.value() is inferred as AuthorResult | undefined
+```
+
+sigql's `TypedDocumentNode` type is structurally compatible with `@graphql-typed-document-node/core`, so generated documents work without any extra dependency. Codegen is entirely optional — plain `gql` documents with explicit type arguments (as in the examples below) work the same as ever.
+
 ## `queryResource()`
 
 The common case: fetch once (and whenever variables change), expose the result as a signal.
@@ -49,10 +87,12 @@ Template access is via the standard `resource()` signals: `authorResource.value(
 
 Options (`QueryResourceOptions`):
 
-- `query` — the document (`gql`-tagged or a string).
-- `variables` — a reactive function returning the variables (a plain `() => V`, a `Signal<V>`, or `computed(() => V)` all work); the resource automatically reloads (and cancels the previous in-flight request) whenever the signals it reads change.
+- `query` — the document (`gql`-tagged, a `TypedDocumentNode`, or a string).
+- `variables` — a reactive function returning the variables (a plain `() => V`, a `Signal<V>`, or `computed(() => V)` all work); the resource automatically reloads (and cancels the previous in-flight request) whenever the signals it reads change. Returning `undefined` suspends the resource — no request is made until variables become available.
 - `select` — transform/extract the raw response into whatever shape you want exposed as `.value()`, instead of the raw query result.
 - `pollInterval` — reload on an interval (in ms), in addition to variable changes.
+- `operationName` — override the name extracted from the document; required for string documents (or multi-operation documents) that should participate in refetching.
+- `injector` — create the resource outside an injection context (e.g. in an event handler).
 - `service` — override the injected `SigqlService` (rarely needed).
 
 ### `select`
@@ -99,16 +139,18 @@ const result = await sigql.query<{ authors: Author[] }>({ query: AUTHORS_QUERY }
 const data = await orThrow(sigql.query<{ authors: Author[] }>({ query: AUTHORS_QUERY }));
 ```
 
-Pass `abortSignal` on the request to cancel it if it fires before the response arrives — this is how `queryResource()`/`watchQueryResource()` cancel stale in-flight requests on rapid variable changes; most callers won't need it directly.
+Pass `abortSignal` on the request to cancel it — the promise rejects with the abort reason if the signal fires (or has already fired) before the response arrives. This is how `queryResource()`/`watchQueryResource()` cancel stale in-flight requests on rapid variable changes; most callers won't need it directly.
 
 ## `SigqlService.watch()`
 
-An `Observable<T>`-based equivalent of `watchQueryResource()`, for code that isn't component-signal-based. Re-emits whenever the operation is refetched elsewhere, or on `pollInterval`.
+An `Observable`-based equivalent of `watchQueryResource()`, for code that isn't component-signal-based. Re-emits whenever the operation is refetched elsewhere, or on `pollInterval`. It emits `GraphQLResult<T>`s, and failed fetches are delivered as `ok: false` results rather than erroring the observable — so a transient network failure never kills a poll or an active watch.
 
 ```ts
 sigql
   .watch<{ authors: Author[] }>({ query: AUTHORS_QUERY, pollInterval: 5000 })
-  .subscribe((data) => {
-    /* ... */
+  .subscribe((result) => {
+    if (result.ok) {
+      /* result.data.authors */
+    }
   });
 ```

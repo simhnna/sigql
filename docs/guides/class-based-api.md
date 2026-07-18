@@ -31,12 +31,16 @@ export class AuthorsQuery extends Query<AuthorsResult> {
 const authorsQuery = inject(AuthorsQuery);
 
 authorsQuery.fetch(); // Promise<GraphQLResult<AuthorsResult>>
-authorsQuery.watch(); // Observable<AuthorsResult>
+authorsQuery.watch(); // Observable<GraphQLResult<AuthorsResult>>
 authorsQuery.resource(); // ResourceRef<AuthorsResult | undefined>, like queryResource()
 authorsQuery.watchResource(); // ResourceRef<AuthorsResult | undefined>, like watchQueryResource()
 ```
 
-`resource()`/`watchResource()` accept the same `(variables?: () => V, select?: (data: T) => R)` parameters as their function-based counterparts.
+`resource()`/`watchResource()` take an options object with the same `variables`/`select`/`injector` options as their function-based counterparts:
+
+```ts
+authorsQuery.resource({ select: (data) => data.authors });
+```
 
 ## `Mutation`
 

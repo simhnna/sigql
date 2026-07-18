@@ -8,8 +8,9 @@ Every `watch()` subscription and every `watchQueryResource()` registers itself, 
 
 This means:
 
-- Queries must be **named** (`query Authors { ... }`, not an anonymous `query { ... }` or a plain string) to participate. `getOperationName()` extracts the name from the parsed document; unnamed/string-based queries simply can't be targeted this way.
+- Queries must be **named** (`query Authors { ... }`, not an anonymous `query { ... }`) to participate. `getOperationName()` extracts the name from the parsed document; for string documents (or multi-operation documents), pass an explicit `operationName` to opt in.
 - The name is just a string match — it doesn't matter which component or service registered it, or whether the variables match. If two different components both `watchResource()` a query named `Books`, refetching `'Books'` reloads both.
+- In dev mode, refetching a name with no registered consumers logs a `console.warn` — this catches typos and queries that silently can't participate (unnamed documents, unmounted components).
 
 ## Triggering a refetch
 
@@ -34,7 +35,7 @@ await sigql.refetch(['Books', 'Authors']);
 
 - `watch()` subscribers hold a live RxJS subscription to the registry's trigger for their name; a refetch calls `.next()` on it, which re-runs the query.
 - `watchQueryResource()` subscribers instead depend on a signal-based "generation" counter for their name, which is incremented on refetch — the resource's `params()` includes that counter, so incrementing it causes the resource to reload.
-- `refetchAndWait()` (used internally by `awaitRefetchQueries: true`, and by `sigql.refetch()`) triggers first, then awaits every registered fetcher for those names, so it can await the _same_ in-flight request `watch()` already kicked off rather than firing a redundant second one.
+- `refetchAndWait()` (used internally by `awaitRefetchQueries: true`, and by `sigql.refetch()`) triggers first, then awaits every registered fetcher for those names, so it can await the _same_ in-flight request `watch()` already kicked off rather than firing a redundant second one. For `watchQueryResource()` consumers it waits until the reload triggered by the generation bump actually completes.
 - Plain `queryResource()` (not `watchQueryResource()`) doesn't participate in this at all — it only reloads on variable changes or `pollInterval`. Use `watchQueryResource()` whenever a query's data can be invalidated by a mutation elsewhere.
 
 ## Local updates as an alternative

@@ -1,4 +1,4 @@
-import { Injectable, signal, Signal, WritableSignal } from '@angular/core';
+import { Injectable, isDevMode, signal, Signal, WritableSignal } from '@angular/core';
 import { Observable, Subject } from 'rxjs';
 
 type Fetcher = () => Promise<unknown>;
@@ -52,6 +52,13 @@ export class QueryRegistry {
 
   refetch(names: string[]): void {
     for (const name of names) {
+      if (isDevMode() && !this.fetchers.has(name)) {
+        console.warn(
+          `[sigql] refetch('${name}') matched no active queries. ` +
+            'Check the name for typos, and note that only named operations (not anonymous or ' +
+            'string-only queries without an explicit operationName) participate in refetching.',
+        );
+      }
       this.triggers.get(name)?.next();
       this.generations.get(name)?.update((g) => g + 1);
     }

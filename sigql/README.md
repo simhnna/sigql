@@ -1,6 +1,6 @@
 # sigql
 
-A lightweight, signal-first GraphQL client for Angular — built directly on `signal()`/`resource()`, with no normalized cache and no code generation required.
+A lightweight, signal-first GraphQL client for Angular — built directly on `signal()`/`resource()`, with no normalized cache and no code generation required (though `TypedDocumentNode`s from GraphQL Code Generator are supported and drive full type inference).
 
 > **Early days.** sigql is `0.0.1` and under active development. Feedback and issues are very welcome (open one at [github.com/simhnna/sigql](https://github.com/simhnna/sigql)), but no guarantees are made yet about API stability or where the library ends up — expect breaking changes between versions.
 
