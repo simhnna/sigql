@@ -41,7 +41,7 @@
     "ng-packagr": "^22.0.1",
     "prettier": "^3.8.1",
     "typescript": "~6.0.3",
-    "vitest": "^4.0.8"
+    "vitest": "^4.1.10"
   },
   "lint-staged": {
     "*": "prettier --ignore-unknown --write"
