@@ -32,7 +32,7 @@
     "@angular/build": "^22.0.5",
     "@angular/cli": "^22.0.5",
     "@angular/compiler-cli": "^22.0.5",
-    "commit-and-tag-version": "^13.0.0",
+    "commit-and-tag-version": "^13.1.0",
     "concurrently": "^9.2.1",
     "graphql-ws": "^5.16.0",
     "husky": "^9.1.7",
