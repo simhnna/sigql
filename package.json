@@ -34,7 +34,7 @@
     "@angular/compiler-cli": "^22.0.5",
     "commit-and-tag-version": "^13.1.0",
     "concurrently": "^9.2.1",
-    "graphql-ws": "^5.16.0",
+    "graphql-ws": "^6.2.0",
     "husky": "^9.1.7",
     "jsdom": "^29.1.1",
     "lint-staged": "^17.0.8",
