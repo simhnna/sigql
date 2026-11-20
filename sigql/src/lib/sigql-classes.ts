@@ -4,7 +4,7 @@ import { queryResource, subscriptionResource, watchQueryResource } from './sigql
 import { SigqlService } from './sigql.service';
 import { DocumentInput, GraphQLResult } from './types';
 
-export interface OperationResourceOptions<T, V, R> {
+export interface OperationResourceOptions<T, V extends object, R> {
   variables?: () => V | undefined;
   /** Allows creation outside an injection context (e.g. in event handlers). */
   injector?: Injector;
@@ -13,7 +13,7 @@ export interface OperationResourceOptions<T, V, R> {
 }
 
 @Injectable()
-export abstract class Query<T, V extends Record<string, unknown> = Record<string, unknown>> {
+export abstract class Query<T, V extends object = object> {
   private readonly sigql = inject(SigqlService);
   abstract readonly document: DocumentInput<T, V>;
 
@@ -37,7 +37,7 @@ export abstract class Query<T, V extends Record<string, unknown> = Record<string
 }
 
 @Injectable()
-export abstract class Mutation<T, V extends Record<string, unknown> = Record<string, unknown>> {
+export abstract class Mutation<T, V extends object = object> {
   private readonly sigql = inject(SigqlService);
   abstract readonly document: DocumentInput<T, V>;
 
@@ -50,7 +50,7 @@ export abstract class Mutation<T, V extends Record<string, unknown> = Record<str
 }
 
 @Injectable()
-export abstract class Subscription<T, V extends Record<string, unknown> = Record<string, unknown>> {
+export abstract class Subscription<T, V extends object = object> {
   private readonly sigql = inject(SigqlService);
   abstract readonly document: DocumentInput<T, V>;
 

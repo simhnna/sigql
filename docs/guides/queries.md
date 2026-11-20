@@ -59,6 +59,8 @@ protected authorResource = queryResource({
 
 sigql's `TypedDocumentNode` type is structurally compatible with `@graphql-typed-document-node/core`, so generated documents work without any extra dependency. Codegen is entirely optional — plain `gql` documents with explicit type arguments (as in the examples below) work the same as ever.
 
+Variables can use interfaces or type aliases without a string index signature. Typed documents still check variable fields against the operation's declared types.
+
 ## `queryResource()`
 
 The common case: fetch once (and whenever variables change), expose the result as a signal.
@@ -67,9 +69,7 @@ The common case: fetch once (and whenever variables change), expose the result a
 import { Component, signal } from '@angular/core';
 import { queryResource } from 'sigql';
 
-@Component({
-  /* ... */
-})
+@Component({/* ... */})
 export class AuthorsListComponent {
   protected authorId = signal('1');
 

@@ -157,9 +157,12 @@ describe('queryResource', () => {
 });
 
 describe('queryResource typing and injector', () => {
-  it('infers result and variables types from a TypedDocumentNode', async () => {
+  it('infers a TypedDocumentNode with an interface for variables', async () => {
     type Result = { user: { id: string } };
-    type Vars = { id: string };
+    interface Vars {
+      readonly id: string;
+      readonly limit?: number;
+    }
     const doc = gql`
       query GetUser($id: ID!) {
         user(id: $id) {
@@ -171,8 +174,9 @@ describe('queryResource typing and injector', () => {
       Promise.resolve({ data: { user: { id: '1' } }, ok: true }),
     );
 
+    const variables: Vars = { id: '1' };
     const ref = TestBed.runInInjectionContext(() =>
-      queryResource({ query: doc, variables: () => ({ id: '1' }), service }),
+      queryResource({ query: doc, variables: () => variables, service }),
     );
 
     expectTypeOf(ref.value()).toEqualTypeOf<Result | undefined>();

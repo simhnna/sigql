@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, expectTypeOf, vi, afterEach } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient, withXhr } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
@@ -11,8 +11,9 @@ import {
   SubscriptionRequest,
   SubscriptionTransport,
 } from './subscription-transport';
-import { GraphQLResult, SigqlError } from './types';
+import { GraphQLResult, SigqlError, TypedDocumentNode } from './types';
 import { gql } from './gql';
+import { Mutation } from './sigql-classes';
 
 const ENDPOINT = 'http://localhost:4000/graphql';
 
@@ -438,6 +439,37 @@ describe('SigqlService', () => {
   });
 
   describe('mutate', () => {
+    it('sends interface-shaped variables from a typed Mutation subclass', async () => {
+      type Result = { renameUser: { id: string } };
+      interface Vars {
+        readonly id: string;
+        readonly name: string;
+      }
+
+      class RenameUser extends Mutation<Result, Vars> {
+        override readonly document = gql`
+          mutation RenameUser($id: ID!, $name: String!) {
+            renameUser(id: $id, name: $name) {
+              id
+            }
+          }
+        ` as TypedDocumentNode<Result, Vars>;
+      }
+
+      const { http } = setup();
+      const mutation = TestBed.runInInjectionContext(() => new RenameUser());
+      const variables: Vars = { id: '42', name: 'Ada' };
+      expectTypeOf<Parameters<typeof mutation.mutate>[0]>().toEqualTypeOf<Vars | undefined>();
+      const result = mutation.mutate(variables);
+      expectTypeOf(result).toEqualTypeOf<Promise<GraphQLResult<Result>>>();
+
+      const request = http.expectOne(ENDPOINT);
+      expect(request.request.body.variables).toBe(variables);
+      const data = { renameUser: { id: '42' } };
+      request.flush({ data });
+      await expect(result).resolves.toEqual({ data, ok: true });
+    });
+
     it('sends the mutation and returns data', async () => {
       const { service, http } = setup();
       const promise = service.mutate<{ createUser: { id: string } }>({
@@ -539,6 +571,9 @@ describe('SigqlService', () => {
     });
 
     it('delegates to the configured transport with the stringified query/variables/operationName', async () => {
+      interface Vars {
+        readonly id: string;
+      }
       const calls: SubscriptionRequest[] = [];
       const transport: SubscriptionTransport = {
         subscribe<T>(request: SubscriptionRequest): Observable<T> {
@@ -551,16 +586,17 @@ describe('SigqlService', () => {
         subscription OnHello {
           hello
         }
-      `;
+      ` as TypedDocumentNode<{ hello: string }, Vars>;
 
+      const variables: Vars = { id: '1' };
       const results: unknown[] = [];
       const sub = service
-        .subscribe({ subscription: doc, variables: { id: '1' } })
+        .subscribe({ subscription: doc, variables })
         .subscribe((v) => results.push(v));
 
       expect(calls).toHaveLength(1);
       expect(calls[0].query).toContain('OnHello');
-      expect(calls[0].variables).toEqual({ id: '1' });
+      expect(calls[0].variables).toBe(variables);
       expect(calls[0].operationName).toBe('OnHello');
       expect(results).toEqual([{ hello: 'world' }]);
 
