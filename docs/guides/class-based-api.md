@@ -36,6 +36,8 @@ authorsQuery.resource(); // ResourceRef<AuthorsResult | undefined>, like queryRe
 authorsQuery.watchResource(); // ResourceRef<AuthorsResult | undefined>, like watchQueryResource()
 ```
 
+For a one-off query, `authorsQuery.fetch(undefined, { abortSignal: controller.signal })` cancels the HTTP request and rejects the promise if the signal aborts before the response arrives. Query resources already cancel stale requests automatically.
+
 `resource()`/`watchResource()` take an options object with the same `variables`/`select`/`injector` options as their function-based counterparts:
 
 ```ts
@@ -58,6 +60,8 @@ export class AddBookMutation extends Mutation<
 const addBook = inject(AddBookMutation);
 await addBook.mutate({ title, year, authorId }, { refetchQueries: ['Books'] });
 ```
+
+Pass `{ abortSignal: controller.signal }` as the second argument to [cancel the mutation request](mutations.md#cancelling-a-mutation).
 
 ## `Subscription`
 

@@ -26,6 +26,10 @@ if (!result.ok) {
 console.log(result.data.addBook);
 ```
 
+## Cancelling a mutation
+
+Pass `abortSignal: controller.signal` to `mutate()`. If the signal is already aborted, no request is sent. If it aborts before the response arrives, Sigql cancels the HTTP request and the promise rejects with the signal's reason (normally an `AbortError`). Cancelling skips automatic refetches, but does not undo a change the server has already applied. Once the mutation response arrives, the signal does not cancel any refetches.
+
 ## Refetching related queries
 
 Since sigql has no normalized cache, nothing updates other queries' data automatically after a mutation. Instead, tell `mutate()` which operation names to refetch by name:
@@ -42,7 +46,7 @@ await sigql.mutate({
 - `refetchQueries` triggers any `watch()`/`watchQueryResource()` consumers currently subscribed under those operation names.
 - Without `awaitRefetchQueries`, refetches are fired and not awaited (`mutate()` resolves as soon as the mutation itself completes).
 - With `awaitRefetchQueries: true`, `mutate()` waits for those refetches to finish too — both `watch()` requests and `watchQueryResource()` reloads — useful when you need fresh data to be in place before doing something next (e.g. navigating away).
-- `mutate()` never rejects: a failed refetch doesn't turn a successful mutation into an exception. The refetch failure is delivered to the watching consumers; `mutate()` still resolves with the mutation's own result.
+- A failed refetch doesn't turn a successful mutation into an exception. The refetch failure is delivered to the watching consumers; `mutate()` still resolves with the mutation's own result.
 
 This only works for named operations (`query Books { ... }`, not an anonymous/unnamed query) — see [Refetching & invalidation](refetching.md) for the full mechanics.
 

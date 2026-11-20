@@ -13,7 +13,7 @@ import {
 } from './subscription-transport';
 import { GraphQLResult, SigqlError, TypedDocumentNode } from './types';
 import { gql } from './gql';
-import { Mutation } from './sigql-classes';
+import { Mutation, Query } from './sigql-classes';
 
 const ENDPOINT = 'http://localhost:4000/graphql';
 
@@ -233,6 +233,23 @@ describe('SigqlService', () => {
       http.expectOne(ENDPOINT).flush({ data: { posts: ['a', 'b'] } });
 
       await expect(promise).resolves.toEqual({ data: { posts: ['a', 'b'] }, ok: true });
+    });
+
+    it('cancels the HTTP request from a Query subclass', async () => {
+      class Posts extends Query<{ posts: string[] }> {
+        override readonly document = '{ posts }';
+      }
+
+      const { http } = setup();
+      const query = TestBed.runInInjectionContext(() => new Posts());
+      const controller = new AbortController();
+      const promise = query.fetch(undefined, { abortSignal: controller.signal });
+
+      const request = http.expectOne(ENDPOINT);
+      controller.abort();
+
+      expect(request.cancelled).toBe(true);
+      await expect(promise).rejects.toMatchObject({ name: 'AbortError' });
     });
   });
 
@@ -479,6 +496,40 @@ describe('SigqlService', () => {
       http.expectOne(ENDPOINT).flush({ data: { createUser: { id: '42' } } });
 
       await expect(promise).resolves.toEqual({ data: { createUser: { id: '42' } }, ok: true });
+    });
+
+    it('cancels the HTTP request from a Mutation subclass without triggering refetches', async () => {
+      class DoSomething extends Mutation<{ doSomething: boolean }> {
+        override readonly document = 'mutation { doSomething }';
+      }
+
+      const { http, registry } = setup();
+      const refetch = vi.spyOn(registry, 'refetch');
+      const mutation = TestBed.runInInjectionContext(() => new DoSomething());
+      const controller = new AbortController();
+      const promise = mutation.mutate(undefined, {
+        abortSignal: controller.signal,
+        refetchQueries: ['MyQuery'],
+      });
+
+      const request = http.expectOne(ENDPOINT);
+      controller.abort();
+
+      expect(request.cancelled).toBe(true);
+      await expect(promise).rejects.toMatchObject({ name: 'AbortError' });
+      expect(refetch).not.toHaveBeenCalled();
+    });
+
+    it('does not send a mutation when the signal is already aborted', async () => {
+      const { service, http } = setup();
+      const reason = new Error('Cancelled before sending');
+      const promise = service.mutate({
+        mutation: 'mutation { doSomething }',
+        abortSignal: AbortSignal.abort(reason),
+      });
+
+      await expect(promise).rejects.toBe(reason);
+      http.expectNone(ENDPOINT);
     });
 
     it('triggers refetchQueries without waiting by default', async () => {

@@ -213,10 +213,16 @@ export class SigqlService {
     mutation,
     variables,
     operationName,
+    abortSignal,
     refetchQueries,
     awaitRefetchQueries,
   }: GraphQLMutationRequest<T, V>): Promise<GraphQLResult<T>> {
-    const result = await this.execute<T, V>({ query: mutation, variables, operationName });
+    const result = await this.execute<T, V>({
+      query: mutation,
+      variables,
+      operationName,
+      abortSignal,
+    });
     if (result.ok && refetchQueries?.length) {
       if (awaitRefetchQueries) {
         // A failed refetch must not reject a successful mutation: the mutation result is the

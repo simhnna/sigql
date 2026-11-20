@@ -31,6 +31,8 @@ export interface GraphQLMutationRequest<T = any, V extends object = object> {
   mutation: DocumentInput<T, V>;
   variables?: V;
   operationName?: string;
+  /** Cancels the mutation HTTP request before its response arrives; does not cancel refetches. */
+  abortSignal?: AbortSignal;
   refetchQueries?: string[];
   awaitRefetchQueries?: boolean;
 }

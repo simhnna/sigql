@@ -2,7 +2,7 @@ import { inject, Injectable, Injector, ResourceRef } from '@angular/core';
 import { Observable } from 'rxjs';
 import { queryResource, subscriptionResource, watchQueryResource } from './sigql-resource';
 import { SigqlService } from './sigql.service';
-import { DocumentInput, GraphQLResult } from './types';
+import { DocumentInput, GraphQLMutationRequest, GraphQLResult } from './types';
 
 export interface OperationResourceOptions<T, V extends object, R> {
   variables?: () => V | undefined;
@@ -17,8 +17,8 @@ export abstract class Query<T, V extends object = object> {
   private readonly sigql = inject(SigqlService);
   abstract readonly document: DocumentInput<T, V>;
 
-  fetch(variables?: V): Promise<GraphQLResult<T>> {
-    return this.sigql.query<T, V>({ query: this.document, variables });
+  fetch(variables?: V, options?: { abortSignal?: AbortSignal }): Promise<GraphQLResult<T>> {
+    return this.sigql.query<T, V>({ query: this.document, variables, ...options });
   }
 
   watch(variables?: V): Observable<GraphQLResult<T>> {
@@ -43,7 +43,10 @@ export abstract class Mutation<T, V extends object = object> {
 
   mutate(
     variables?: V,
-    options?: { refetchQueries?: string[]; awaitRefetchQueries?: boolean },
+    options?: Pick<
+      GraphQLMutationRequest<T, V>,
+      'abortSignal' | 'refetchQueries' | 'awaitRefetchQueries'
+    >,
   ): Promise<GraphQLResult<T>> {
     return this.sigql.mutate<T, V>({ mutation: this.document, variables, ...options });
   }
