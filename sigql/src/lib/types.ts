@@ -17,10 +17,9 @@ export interface TypedDocumentNode<TResult = any, TVariables = any> extends Docu
  * `TypedDocumentNode` (which additionally drives type inference for results and variables).
  */
 export type DocumentInput<TResult = any, TVariables = any> =
-  | string
-  | TypedDocumentNode<TResult, TVariables>;
+  string | TypedDocumentNode<TResult, TVariables>;
 
-export interface GraphQLRequest<T = any, V = Record<string, unknown>> {
+export interface GraphQLRequest<T = any, V extends object = object> {
   query: DocumentInput<T, V>;
   variables?: V;
   operationName?: string;
@@ -28,15 +27,17 @@ export interface GraphQLRequest<T = any, V = Record<string, unknown>> {
   abortSignal?: AbortSignal;
 }
 
-export interface GraphQLMutationRequest<T = any, V = Record<string, unknown>> {
+export interface GraphQLMutationRequest<T = any, V extends object = object> {
   mutation: DocumentInput<T, V>;
   variables?: V;
   operationName?: string;
+  /** Cancels the mutation HTTP request before its response arrives; does not cancel refetches. */
+  abortSignal?: AbortSignal;
   refetchQueries?: string[];
   awaitRefetchQueries?: boolean;
 }
 
-export interface GraphQLSubscriptionRequest<T = any, V = Record<string, unknown>> {
+export interface GraphQLSubscriptionRequest<T = any, V extends object = object> {
   subscription: DocumentInput<T, V>;
   variables?: V;
   operationName?: string;

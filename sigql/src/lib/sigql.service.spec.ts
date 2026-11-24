@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, expectTypeOf, vi, afterEach } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient, withXhr } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
@@ -11,8 +11,9 @@ import {
   SubscriptionRequest,
   SubscriptionTransport,
 } from './subscription-transport';
-import { GraphQLResult, SigqlError } from './types';
+import { GraphQLResult, SigqlError, TypedDocumentNode } from './types';
 import { gql } from './gql';
+import { Mutation, Query } from './sigql-classes';
 
 const ENDPOINT = 'http://localhost:4000/graphql';
 
@@ -55,6 +56,19 @@ describe('SigqlService', () => {
       req.flush({ data: { hello: 'world' } });
 
       await expect(promise).resolves.toEqual({ data: { hello: 'world' }, ok: true });
+    });
+
+    it('accepts application/graphql-response+json with a JSON fallback', async () => {
+      const { service, http } = setup();
+      const promise = service.execute({ query: '{ hello }' });
+
+      const req = http.expectOne(ENDPOINT);
+      expect(req.request.headers.get('Accept')).toBe(
+        'application/graphql-response+json, application/json;q=0.9',
+      );
+      req.flush({ data: {} });
+
+      await promise;
     });
 
     it('resolves with ok: false and errors when the response contains GraphQL errors', async () => {
@@ -232,6 +246,63 @@ describe('SigqlService', () => {
       http.expectOne(ENDPOINT).flush({ data: { posts: ['a', 'b'] } });
 
       await expect(promise).resolves.toEqual({ data: { posts: ['a', 'b'] }, ok: true });
+    });
+
+    it('sends the inferred operation name in the body and configured URL parameter', async () => {
+      const { service, http } = setup({ operationNameParam: 'op' });
+      const promise = service.query({
+        query: gql`
+          query Posts {
+            posts
+          }
+        `,
+      });
+
+      const req = http.expectOne(`${ENDPOINT}?op=Posts`);
+      expect(req.request.body.operationName).toBe('Posts');
+      req.flush({ data: { posts: [] } });
+      await promise;
+    });
+
+    it('only sends an operation name for a multi-operation document when explicitly supplied', async () => {
+      const { service, http } = setup({ operationNameParam: 'op' });
+      const query = gql`
+        query First {
+          hello
+        }
+        query Second {
+          hello
+        }
+      `;
+
+      const unspecified = service.query({ query });
+      const req = http.expectOne(ENDPOINT);
+      expect(req.request.body.operationName).toBeUndefined();
+      req.flush({ errors: [{ message: 'Must provide operation name' }] });
+      await expect(unspecified).resolves.toMatchObject({ ok: false });
+
+      const specified = service.query({ query, operationName: 'Second' });
+      const namedReq = http.expectOne(`${ENDPOINT}?op=Second`);
+      expect(namedReq.request.body.operationName).toBe('Second');
+      namedReq.flush({ data: { hello: 'world' } });
+      await expect(specified).resolves.toMatchObject({ ok: true });
+    });
+
+    it('cancels the HTTP request from a Query subclass', async () => {
+      class Posts extends Query<{ posts: string[] }> {
+        override readonly document = '{ posts }';
+      }
+
+      const { http } = setup();
+      const query = TestBed.runInInjectionContext(() => new Posts());
+      const controller = new AbortController();
+      const promise = query.fetch(undefined, { abortSignal: controller.signal });
+
+      const request = http.expectOne(ENDPOINT);
+      controller.abort();
+
+      expect(request.cancelled).toBe(true);
+      await expect(promise).rejects.toMatchObject({ name: 'AbortError' });
     });
   });
 
@@ -438,6 +509,58 @@ describe('SigqlService', () => {
   });
 
   describe('mutate', () => {
+    it('sends typed variables and an inferred operation name from a Mutation subclass', async () => {
+      type Result = { renameUser: { id: string } };
+      interface Vars {
+        readonly id: string;
+        readonly name: string;
+      }
+
+      class RenameUser extends Mutation<Result, Vars> {
+        override readonly document = gql`
+          mutation RenameUser($id: ID!, $name: String!) {
+            renameUser(id: $id, name: $name) {
+              id
+            }
+          }
+        ` as TypedDocumentNode<Result, Vars>;
+      }
+
+      const { http } = setup({ operationNameParam: 'op' });
+      const mutation = TestBed.runInInjectionContext(() => new RenameUser());
+      const variables: Vars = { id: '42', name: 'Ada' };
+      expectTypeOf<Parameters<typeof mutation.mutate>[0]>().toEqualTypeOf<Vars | undefined>();
+      const result = mutation.mutate(variables);
+      expectTypeOf(result).toEqualTypeOf<Promise<GraphQLResult<Result>>>();
+
+      const request = http.expectOne(`${ENDPOINT}?op=RenameUser`);
+      expect(request.request.body.variables).toBe(variables);
+      expect(request.request.body.operationName).toBe('RenameUser');
+      const data = { renameUser: { id: '42' } };
+      request.flush({ data });
+      await expect(result).resolves.toEqual({ data, ok: true });
+    });
+
+    it('uses the explicit operation name to select a mutation from a multi-operation document', async () => {
+      const { service, http } = setup({ operationNameParam: 'op' });
+      const promise = service.mutate({
+        mutation: gql`
+          mutation First {
+            doFirst
+          }
+          mutation Second {
+            doSecond
+          }
+        `,
+        operationName: 'Second',
+      });
+
+      const request = http.expectOne(`${ENDPOINT}?op=Second`);
+      expect(request.request.body.operationName).toBe('Second');
+      request.flush({ data: { doSecond: true } });
+      await expect(promise).resolves.toEqual({ data: { doSecond: true }, ok: true });
+    });
+
     it('sends the mutation and returns data', async () => {
       const { service, http } = setup();
       const promise = service.mutate<{ createUser: { id: string } }>({
@@ -447,6 +570,40 @@ describe('SigqlService', () => {
       http.expectOne(ENDPOINT).flush({ data: { createUser: { id: '42' } } });
 
       await expect(promise).resolves.toEqual({ data: { createUser: { id: '42' } }, ok: true });
+    });
+
+    it('cancels the HTTP request from a Mutation subclass without triggering refetches', async () => {
+      class DoSomething extends Mutation<{ doSomething: boolean }> {
+        override readonly document = 'mutation { doSomething }';
+      }
+
+      const { http, registry } = setup();
+      const refetch = vi.spyOn(registry, 'refetch');
+      const mutation = TestBed.runInInjectionContext(() => new DoSomething());
+      const controller = new AbortController();
+      const promise = mutation.mutate(undefined, {
+        abortSignal: controller.signal,
+        refetchQueries: ['MyQuery'],
+      });
+
+      const request = http.expectOne(ENDPOINT);
+      controller.abort();
+
+      expect(request.cancelled).toBe(true);
+      await expect(promise).rejects.toMatchObject({ name: 'AbortError' });
+      expect(refetch).not.toHaveBeenCalled();
+    });
+
+    it('does not send a mutation when the signal is already aborted', async () => {
+      const { service, http } = setup();
+      const reason = new Error('Cancelled before sending');
+      const promise = service.mutate({
+        mutation: 'mutation { doSomething }',
+        abortSignal: AbortSignal.abort(reason),
+      });
+
+      await expect(promise).rejects.toBe(reason);
+      http.expectNone(ENDPOINT);
     });
 
     it('triggers refetchQueries without waiting by default', async () => {
@@ -539,6 +696,9 @@ describe('SigqlService', () => {
     });
 
     it('delegates to the configured transport with the stringified query/variables/operationName', async () => {
+      interface Vars {
+        readonly id: string;
+      }
       const calls: SubscriptionRequest[] = [];
       const transport: SubscriptionTransport = {
         subscribe<T>(request: SubscriptionRequest): Observable<T> {
@@ -551,16 +711,17 @@ describe('SigqlService', () => {
         subscription OnHello {
           hello
         }
-      `;
+      ` as TypedDocumentNode<{ hello: string }, Vars>;
 
+      const variables: Vars = { id: '1' };
       const results: unknown[] = [];
       const sub = service
-        .subscribe({ subscription: doc, variables: { id: '1' } })
+        .subscribe({ subscription: doc, variables })
         .subscribe((v) => results.push(v));
 
       expect(calls).toHaveLength(1);
       expect(calls[0].query).toContain('OnHello');
-      expect(calls[0].variables).toEqual({ id: '1' });
+      expect(calls[0].variables).toBe(variables);
       expect(calls[0].operationName).toBe('OnHello');
       expect(results).toEqual([{ hello: 'world' }]);
 

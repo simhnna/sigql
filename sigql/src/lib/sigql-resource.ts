@@ -14,11 +14,7 @@ import { QueryRegistry } from './query-registry.service';
 import { DocumentInput, GraphQLResult, orThrow } from './types';
 import { getOperationName } from './utils';
 
-export interface QueryResourceOptions<
-  T = unknown,
-  V extends Record<string, unknown> = never,
-  R = T,
-> {
+export interface QueryResourceOptions<T = unknown, V extends object = never, R = T> {
   query: DocumentInput<T, V>;
   /** Returning `undefined` suspends the resource (no request) until variables become available. */
   variables?: () => V | undefined;
@@ -47,7 +43,7 @@ function resolveDestroyRef(injector: Injector | undefined): DestroyRef {
   return injector ? injector.get(DestroyRef) : inject(DestroyRef);
 }
 
-export function queryResource<T = unknown, V extends Record<string, unknown> = never, R = T>(
+export function queryResource<T = unknown, V extends object = never, R = T>(
   options: QueryResourceOptions<T, V, R>,
 ): ResourceRef<R | undefined> {
   const { query, variables, pollInterval, select, injector } = options;
@@ -73,7 +69,7 @@ export function queryResource<T = unknown, V extends Record<string, unknown> = n
   return ref;
 }
 
-export function watchQueryResource<T = unknown, V extends Record<string, unknown> = never, R = T>(
+export function watchQueryResource<T = unknown, V extends object = never, R = T>(
   options: QueryResourceOptions<T, V, R>,
 ): ResourceRef<R | undefined> {
   const { query, variables, pollInterval, select, injector } = options;
@@ -146,11 +142,7 @@ export function watchQueryResource<T = unknown, V extends Record<string, unknown
   return ref;
 }
 
-export interface SubscriptionResourceOptions<
-  T = unknown,
-  V extends Record<string, unknown> = never,
-  R = T,
-> {
+export interface SubscriptionResourceOptions<T = unknown, V extends object = never, R = T> {
   subscription: DocumentInput<T, V>;
   /** Returning `undefined` suspends the resource (no subscription) until variables become available. */
   variables?: () => V | undefined;
@@ -162,7 +154,7 @@ export interface SubscriptionResourceOptions<
   select?: (data: T) => R;
 }
 
-export function subscriptionResource<T = unknown, V extends Record<string, unknown> = never, R = T>(
+export function subscriptionResource<T = unknown, V extends object = never, R = T>(
   options: SubscriptionResourceOptions<T, V, R>,
 ): ResourceRef<R | undefined> {
   const { subscription, variables, select, injector, operationName } = options;

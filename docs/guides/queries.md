@@ -59,6 +59,8 @@ protected authorResource = queryResource({
 
 sigql's `TypedDocumentNode` type is structurally compatible with `@graphql-typed-document-node/core`, so generated documents work without any extra dependency. Codegen is entirely optional — plain `gql` documents with explicit type arguments (as in the examples below) work the same as ever.
 
+Variables can use interfaces or type aliases without a string index signature. Typed documents still check variable fields against the operation's declared types.
+
 ## `queryResource()`
 
 The common case: fetch once (and whenever variables change), expose the result as a signal.
@@ -67,9 +69,7 @@ The common case: fetch once (and whenever variables change), expose the result a
 import { Component, signal } from '@angular/core';
 import { queryResource } from 'sigql';
 
-@Component({
-  /* ... */
-})
+@Component({/* ... */})
 export class AuthorsListComponent {
   protected authorId = signal('1');
 
@@ -138,6 +138,8 @@ const result = await sigql.query<{ authors: Author[] }>({ query: AUTHORS_QUERY }
 // To get a throwing Promise<T> instead (e.g. to use with try/catch):
 const data = await orThrow(sigql.query<{ authors: Author[] }>({ query: AUTHORS_QUERY }));
 ```
+
+`query()` (and the class-based `Query.fetch()`) sends `operationName` automatically when a parsed document contains a single named operation. The name is sent in the request body and, if `operationNameParam` is configured, in the URL. Pass an explicit `operationName` to `query()` to override inference or to select an operation in a multi-operation document. Names are not inferred from plain strings.
 
 Pass `abortSignal` on the request to cancel it — the promise rejects with the abort reason if the signal fires (or has already fired) before the response arrives. This is how `queryResource()`/`watchQueryResource()` cancel stale in-flight requests on rapid variable changes; most callers won't need it directly.
 

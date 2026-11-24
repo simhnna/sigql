@@ -16,7 +16,7 @@
     "release": "commit-and-tag-version"
   },
   "private": true,
-  "packageManager": "pnpm@10.28.2",
+  "packageManager": "pnpm@12.23.0",
   "dependencies": {
     "@angular/common": "^22.0.5",
     "@angular/compiler": "^22.0.5",
@@ -24,7 +24,7 @@
     "@angular/forms": "^22.0.5",
     "@angular/platform-browser": "^22.0.5",
     "@angular/router": "^22.0.5",
-    "graphql": "^16.13.1",
+    "graphql": "^17.0.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
   },
@@ -34,7 +34,7 @@
     "@angular/compiler-cli": "^22.0.5",
     "commit-and-tag-version": "^13.1.0",
     "concurrently": "^9.2.1",
-    "graphql-ws": "^5.16.0",
+    "graphql-ws": "^6.4.0",
     "husky": "^9.1.7",
     "jsdom": "^29.1.1",
     "lint-staged": "^17.0.8",

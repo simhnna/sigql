@@ -16,7 +16,7 @@ import { print } from 'graphql';
 import { DocumentNode } from './gql';
 import { SIGQL_CONFIG, SIGQL_ENDPOINT } from './provider';
 import { QueryRegistry } from './query-registry.service';
-import { SIGQL_SUBSCRIPTION_TRANSPORT } from './subscription-transport';
+import { SIGQL_SUBSCRIPTION_TRANSPORT, SubscriptionRequest } from './subscription-transport';
 import { getOperationName } from './utils';
 
 function abortError(signal: AbortSignal): unknown {
@@ -51,12 +51,14 @@ export class SigqlService {
     return printed;
   }
 
-  private post$<T, V extends Record<string, unknown>>(
-    request: GraphQLRequest<T, V>,
-  ): Observable<GraphQLResult<T>> {
+  private post$<T, V extends object>(request: GraphQLRequest<T, V>): Observable<GraphQLResult<T>> {
     const query = this.stringify(request.query);
     const body = { query, variables: request.variables, operationName: request.operationName };
-    return this.http.post<GraphQLResponse<T>>(this.urlFor(request.operationName), body).pipe(
+    // Per the GraphQL-over-HTTP spec, `application/graphql-response+json` is preferred;
+    // `application/json` is listed as a fallback for servers that don't implement it.
+    const headers = { Accept: 'application/graphql-response+json, application/json;q=0.9' };
+    const url = this.urlFor(request.operationName);
+    return this.http.post<GraphQLResponse<T>>(url, body, { headers }).pipe(
       map((response): GraphQLResult<T> => {
         const errors = response.errors?.length ? response.errors : undefined;
         if (errors) {
@@ -96,7 +98,7 @@ export class SigqlService {
    * the response arrives (rejecting the promise with the signal's reason). Used by
    * resource()-based queries so stale in-flight requests are cancelled on rapid variable changes.
    */
-  execute<T = unknown, V extends Record<string, unknown> = Record<string, unknown>>(
+  execute<T = unknown, V extends object = object>(
     request: GraphQLRequest<T, V>,
   ): Promise<GraphQLResult<T>> {
     const signal = request.abortSignal;
@@ -122,10 +124,11 @@ export class SigqlService {
     });
   }
 
-  query<T = unknown, V extends Record<string, unknown> = Record<string, unknown>>(
+  query<T = unknown, V extends object = object>(
     request: GraphQLRequest<T, V>,
   ): Promise<GraphQLResult<T>> {
-    return this.execute<T, V>(request);
+    const operationName = request.operationName ?? getOperationName(request.query);
+    return this.execute<T, V>({ ...request, operationName });
   }
 
   /**
@@ -133,7 +136,7 @@ export class SigqlService {
    * triggered (e.g. by a mutation's `refetchQueries`) or on `pollInterval`. Failed fetches are
    * emitted as `ok: false` results — the stream stays alive, so polling survives network blips.
    */
-  watch<T = unknown, V extends Record<string, unknown> = Record<string, unknown>>(
+  watch<T = unknown, V extends object = object>(
     request: GraphQLRequest<T, V> & { pollInterval?: number },
   ): Observable<GraphQLResult<T>> {
     const name = request.operationName ?? getOperationName(request.query);
@@ -175,7 +178,7 @@ export class SigqlService {
     });
   }
 
-  subscribe<T = unknown, V extends Record<string, unknown> = Record<string, unknown>>({
+  subscribe<T = unknown, V extends object = object>({
     subscription,
     variables,
     operationName,
@@ -193,8 +196,13 @@ export class SigqlService {
     }
     const query = this.stringify(subscription);
     const name = operationName ?? getOperationName(subscription);
+    // At the transport boundary, variable keys can be read generically as unknown.
     return this.transport
-      .subscribe<T>({ query, variables, operationName: name })
+      .subscribe<T>({
+        query,
+        variables: variables as SubscriptionRequest['variables'],
+        operationName: name,
+      })
       .pipe(
         catchError((err) =>
           throwError(() =>
@@ -206,14 +214,20 @@ export class SigqlService {
       );
   }
 
-  async mutate<T = unknown, V extends Record<string, unknown> = Record<string, unknown>>({
+  async mutate<T = unknown, V extends object = object>({
     mutation,
     variables,
     operationName,
+    abortSignal,
     refetchQueries,
     awaitRefetchQueries,
   }: GraphQLMutationRequest<T, V>): Promise<GraphQLResult<T>> {
-    const result = await this.execute<T, V>({ query: mutation, variables, operationName });
+    const result = await this.execute<T, V>({
+      query: mutation,
+      variables,
+      operationName: operationName ?? getOperationName(mutation),
+      abortSignal,
+    });
     if (result.ok && refetchQueries?.length) {
       if (awaitRefetchQueries) {
         // A failed refetch must not reject a successful mutation: the mutation result is the
