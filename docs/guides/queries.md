@@ -139,6 +139,8 @@ const result = await sigql.query<{ authors: Author[] }>({ query: AUTHORS_QUERY }
 const data = await orThrow(sigql.query<{ authors: Author[] }>({ query: AUTHORS_QUERY }));
 ```
 
+`query()` (and the class-based `Query.fetch()`) sends `operationName` automatically when a parsed document contains a single named operation. The name is sent in the request body and, if `operationNameParam` is configured, in the URL. Pass an explicit `operationName` to `query()` to override inference or to select an operation in a multi-operation document. Names are not inferred from plain strings.
+
 Pass `abortSignal` on the request to cancel it — the promise rejects with the abort reason if the signal fires (or has already fired) before the response arrives. This is how `queryResource()`/`watchQueryResource()` cancel stale in-flight requests on rapid variable changes; most callers won't need it directly.
 
 ## `SigqlService.watch()`

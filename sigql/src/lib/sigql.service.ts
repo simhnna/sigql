@@ -123,7 +123,8 @@ export class SigqlService {
   query<T = unknown, V extends object = object>(
     request: GraphQLRequest<T, V>,
   ): Promise<GraphQLResult<T>> {
-    return this.execute<T, V>(request);
+    const operationName = request.operationName ?? getOperationName(request.query);
+    return this.execute<T, V>({ ...request, operationName });
   }
 
   /**
@@ -220,7 +221,7 @@ export class SigqlService {
     const result = await this.execute<T, V>({
       query: mutation,
       variables,
-      operationName,
+      operationName: operationName ?? getOperationName(mutation),
       abortSignal,
     });
     if (result.ok && refetchQueries?.length) {

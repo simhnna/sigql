@@ -26,6 +26,8 @@ if (!result.ok) {
 console.log(result.data.addBook);
 ```
 
+Like `query()`, `mutate()` infers `operationName` from a parsed document with a single named operation. The name is sent in the request body and, if `operationNameParam` is configured, in the URL. An explicit `operationName` takes precedence and is required to select an operation in a multi-operation document. Names are not inferred from plain strings.
+
 ## Cancelling a mutation
 
 Pass `abortSignal: controller.signal` to `mutate()`. If the signal is already aborted, no request is sent. If it aborts before the response arrives, Sigql cancels the HTTP request and the promise rejects with the signal's reason (normally an `AbortError`). Cancelling skips automatic refetches, but does not undo a change the server has already applied. Once the mutation response arrives, the signal does not cancel any refetches.

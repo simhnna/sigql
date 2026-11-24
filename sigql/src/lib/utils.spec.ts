@@ -29,7 +29,7 @@ describe('getOperationName', () => {
     expect(getOperationName(doc)).toBeUndefined();
   });
 
-  it('returns the first operation name from a DocumentNode with multiple operations', () => {
+  it('returns undefined for a DocumentNode with multiple operations', () => {
     const doc = gql`
       query GetUser {
         user {
@@ -42,6 +42,6 @@ describe('getOperationName', () => {
         }
       }
     `;
-    expect(getOperationName(doc)).toBe('GetUser');
+    expect(getOperationName(doc)).toBeUndefined();
   });
 });

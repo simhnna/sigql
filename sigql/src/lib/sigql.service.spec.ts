@@ -235,6 +235,46 @@ describe('SigqlService', () => {
       await expect(promise).resolves.toEqual({ data: { posts: ['a', 'b'] }, ok: true });
     });
 
+    it('sends the inferred operation name in the body and configured URL parameter', async () => {
+      const { service, http } = setup({ operationNameParam: 'op' });
+      const promise = service.query({
+        query: gql`
+          query Posts {
+            posts
+          }
+        `,
+      });
+
+      const req = http.expectOne(`${ENDPOINT}?op=Posts`);
+      expect(req.request.body.operationName).toBe('Posts');
+      req.flush({ data: { posts: [] } });
+      await promise;
+    });
+
+    it('only sends an operation name for a multi-operation document when explicitly supplied', async () => {
+      const { service, http } = setup({ operationNameParam: 'op' });
+      const query = gql`
+        query First {
+          hello
+        }
+        query Second {
+          hello
+        }
+      `;
+
+      const unspecified = service.query({ query });
+      const req = http.expectOne(ENDPOINT);
+      expect(req.request.body.operationName).toBeUndefined();
+      req.flush({ errors: [{ message: 'Must provide operation name' }] });
+      await expect(unspecified).resolves.toMatchObject({ ok: false });
+
+      const specified = service.query({ query, operationName: 'Second' });
+      const namedReq = http.expectOne(`${ENDPOINT}?op=Second`);
+      expect(namedReq.request.body.operationName).toBe('Second');
+      namedReq.flush({ data: { hello: 'world' } });
+      await expect(specified).resolves.toMatchObject({ ok: true });
+    });
+
     it('cancels the HTTP request from a Query subclass', async () => {
       class Posts extends Query<{ posts: string[] }> {
         override readonly document = '{ posts }';
@@ -456,7 +496,7 @@ describe('SigqlService', () => {
   });
 
   describe('mutate', () => {
-    it('sends interface-shaped variables from a typed Mutation subclass', async () => {
+    it('sends typed variables and an inferred operation name from a Mutation subclass', async () => {
       type Result = { renameUser: { id: string } };
       interface Vars {
         readonly id: string;
@@ -473,18 +513,39 @@ describe('SigqlService', () => {
         ` as TypedDocumentNode<Result, Vars>;
       }
 
-      const { http } = setup();
+      const { http } = setup({ operationNameParam: 'op' });
       const mutation = TestBed.runInInjectionContext(() => new RenameUser());
       const variables: Vars = { id: '42', name: 'Ada' };
       expectTypeOf<Parameters<typeof mutation.mutate>[0]>().toEqualTypeOf<Vars | undefined>();
       const result = mutation.mutate(variables);
       expectTypeOf(result).toEqualTypeOf<Promise<GraphQLResult<Result>>>();
 
-      const request = http.expectOne(ENDPOINT);
+      const request = http.expectOne(`${ENDPOINT}?op=RenameUser`);
       expect(request.request.body.variables).toBe(variables);
+      expect(request.request.body.operationName).toBe('RenameUser');
       const data = { renameUser: { id: '42' } };
       request.flush({ data });
       await expect(result).resolves.toEqual({ data, ok: true });
+    });
+
+    it('uses the explicit operation name to select a mutation from a multi-operation document', async () => {
+      const { service, http } = setup({ operationNameParam: 'op' });
+      const promise = service.mutate({
+        mutation: gql`
+          mutation First {
+            doFirst
+          }
+          mutation Second {
+            doSecond
+          }
+        `,
+        operationName: 'Second',
+      });
+
+      const request = http.expectOne(`${ENDPOINT}?op=Second`);
+      expect(request.request.body.operationName).toBe('Second');
+      request.flush({ data: { doSecond: true } });
+      await expect(promise).resolves.toEqual({ data: { doSecond: true }, ok: true });
     });
 
     it('sends the mutation and returns data', async () => {
