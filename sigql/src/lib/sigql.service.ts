@@ -54,7 +54,11 @@ export class SigqlService {
   private post$<T, V extends object>(request: GraphQLRequest<T, V>): Observable<GraphQLResult<T>> {
     const query = this.stringify(request.query);
     const body = { query, variables: request.variables, operationName: request.operationName };
-    return this.http.post<GraphQLResponse<T>>(this.urlFor(request.operationName), body).pipe(
+    // Per the GraphQL-over-HTTP spec, `application/graphql-response+json` is preferred;
+    // `application/json` is listed as a fallback for servers that don't implement it.
+    const headers = { Accept: 'application/graphql-response+json, application/json;q=0.9' };
+    const url = this.urlFor(request.operationName);
+    return this.http.post<GraphQLResponse<T>>(url, body, { headers }).pipe(
       map((response): GraphQLResult<T> => {
         const errors = response.errors?.length ? response.errors : undefined;
         if (errors) {

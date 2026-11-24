@@ -58,6 +58,19 @@ describe('SigqlService', () => {
       await expect(promise).resolves.toEqual({ data: { hello: 'world' }, ok: true });
     });
 
+    it('accepts application/graphql-response+json with a JSON fallback', async () => {
+      const { service, http } = setup();
+      const promise = service.execute({ query: '{ hello }' });
+
+      const req = http.expectOne(ENDPOINT);
+      expect(req.request.headers.get('Accept')).toBe(
+        'application/graphql-response+json, application/json;q=0.9',
+      );
+      req.flush({ data: {} });
+
+      await promise;
+    });
+
     it('resolves with ok: false and errors when the response contains GraphQL errors', async () => {
       expect.assertions(3);
       const { service, http } = setup();
